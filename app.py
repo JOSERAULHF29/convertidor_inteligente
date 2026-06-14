@@ -2,10 +2,17 @@ import streamlit as st
 import pandas as pd
 from transformador import procesar_jdlink
 from io import BytesIO
+import os
+import base64
 
 # ==================================================
 # CONFIGURACIÓN
 # ==================================================
+def img_to_base64(path):
+    with open(path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+img_base64 = img_to_base64("mejorada2.png")
+
 st.set_page_config(
     page_title="Conversor Inteligente",
     page_icon="📊",
@@ -64,19 +71,35 @@ with st.sidebar:
 
     st.image("csc.png", use_container_width=True)
 
-    st.info("""
-    📌 REGLAS DEL SISTEMA:
-    
-    ✔ Solo archivos de Operations Center  
-    ✔ Debe contener columna: "Unidad"  
-    ✔ No se procesan archivos con estructura diferente 
-    ✔ Asegúrate de subir el archivo correcto antes de procesar
-    """)
+    st.markdown("""
+<div style="
+    border: 2px solid #444;
+    border-radius: 10px;
+    padding: 15px;
+    background-color: #111111;
+    color: #ffffff;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+">
+
+ <b>REGLAS DEL SISTEMA</b>
+
+<ul style="margin-top:10px;">
+    <li>Solo archivos de Operations Center</li>
+    <li>Debe contener columna: <b>"Unidad"</b></li>
+    <li>No se procesan archivos con estructura diferente</li>
+    <li>Asegúrate de subir el archivo correcto antes de procesar</li>
+</ul>
+
+</div>
+""", unsafe_allow_html=True)
 
 # ==================================================
 # BANNER
 # ==================================================
-st.image("mejorada.png", width=1200)
+st.markdown(f"""
+<img src="data:image/png;base64,{img_base64}" 
+     style="width:100%; height:450px; object-fit:cover; border-radius:10px;">
+""", unsafe_allow_html=True)
 
 # ==================================================
 # TITULO
@@ -194,8 +217,36 @@ st.markdown("""
 <h2>Convertimos datos en decisiones</h2>
 
 <p style="font-size:18px;color:gray;">
-Desarrollado por <b>Raul Huamani - Data & Analytics</b>
+Desarrollado por <b>Raul Huamani - Data & Analytics - Ipesa </b>
 </p>
 
 </div>
+""", unsafe_allow_html=True)
+st.markdown("""
+<style>
+/* Ocultar menú superior (hamburguesa) */
+#MainMenu {
+    visibility: hidden;
+}
+
+/* Ocultar header superior */
+header {
+    visibility: hidden;
+}
+
+/* Ocultar footer inferior */
+footer {
+    visibility: hidden;
+}
+
+/* Ocultar barra de herramientas superior derecha (Streamlit toolbar) */
+.stAppToolbar {
+    display: none;
+}
+
+/* Ocultar botón "Manage app" (Streamlit Cloud) */
+.stDeployButton {
+    display: none;
+}
+</style>
 """, unsafe_allow_html=True)
