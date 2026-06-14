@@ -133,16 +133,16 @@ with col1:
         type=["xlsx"],
         key="nuevo"
     )
+    st.caption("Archivo descargado del Operations Center que serán procesados y corregidos.")
 
 with col2:
     st.markdown("### 📄 Archivo modelo")
-
     archivo_modelo = st.file_uploader(
         "",
         type=["xlsx"],
         key="modelo"
     )
-
+    st.caption("Archivo base que contiene la estructura correcta. El archivo nuevo será adaptado a este formato.")
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ==================================================
