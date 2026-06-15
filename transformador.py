@@ -109,7 +109,7 @@ def procesar_jdlink(df, df_old):
     # =========================
     df_final = df[columnas_finales].copy()
     df_final.columns = [limpiar_nombre(c) for c in nombres_finales]
-    df_final = df_final.iloc[1:].reset_index(drop=True)
+    df_final = df_final.reset_index(drop=True)
 
     old_keys = [
         (*extraer_base_y_unidad(c), c)
