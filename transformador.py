@@ -131,7 +131,7 @@ def procesar_jdlink(df, df_old):
 
     df_final_ordenado = df_final[cols_ordenadas].copy()
     df_final_ordenado = df_final_ordenado.iloc[:, :len(df_old.columns)]
-    df_final_ordenado.columns = df_old.columns
+    
 
     # =========================
     # FECHAS
