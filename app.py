@@ -204,7 +204,7 @@ if archivo_nuevo and archivo_modelo:
             )
 
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            st.error(f"❌ Revise su datos -  Error: {str(e)}")
 
 # ==================================================
 # FOOTER
