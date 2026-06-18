@@ -146,8 +146,6 @@ def procesar_jdlink(df, df_old):
 
     return df_final_ordenado
     '''
-
-
 import pandas as pd
 import re
 import unicodedata
@@ -169,7 +167,7 @@ def formatear_fecha(serie):
 
 
 # =========================
-# NORMALIZACIÓN FUERTE
+# NORMALIZACIÓN
 # =========================
 def norm_col(c):
     c = str(c)
@@ -177,7 +175,7 @@ def norm_col(c):
     c = c.lower()
     c = c.replace("\xa0", " ")
     c = re.sub(r"\s+", " ", c)
-    c = re.sub(r"[^\w\s%()&]", "", c)  # mantiene & por C&F
+    c = re.sub(r"[^\w\s%()&]", "", c)
     return c.strip()
 
 
@@ -185,21 +183,11 @@ def limpiar_nombre(c):
     return re.sub(r"\.\d+$", "", str(c)).strip()
 
 
-def extraer_base_y_unidad(col):
-    m = re.match(r"(.+?)\s*\((.+?)\)$", str(col))
-    if m:
-        return norm_col(m.group(1)), norm_col(m.group(2))
-    return norm_col(col), ""
-
-
 # =========================
 # PROCESO PRINCIPAL
 # =========================
 def procesar_jdlink(df, df_old):
 
-    # =========================
-    # MODELO (FUENTE DE VERDAD)
-    # =========================
     df_old.columns = [limpiar_nombre(c) for c in df_old.columns]
 
     mapeo = {
@@ -207,139 +195,83 @@ def procesar_jdlink(df, df_old):
     }
 
     # =========================
-    # RENOMBRAR NUEVO DF
+    # PASO 1: CONSTRUIR DF LIMPIO SIN ASUMIR PARES FIJOS
     # =========================
-    columnas_finales = []
-    nombres_finales = []
+    columnas = {}
 
     i = 0
-
     while i < len(df.columns):
 
-        col_actual = str(df.columns[i])
+        col = df.columns[i]
+        nombre = limpiar_nombre(col)
+        nombre = mapeo.get(nombre.lower(), nombre)
 
-        nombre_limpio = limpiar_nombre(col_actual)
-        nombre_limpio = mapeo.get(nombre_limpio.lower(), nombre_limpio)
-
-        nombre_norm = norm_col(nombre_limpio)
-
-        tiene_unidad = (
-            i + 1 < len(df.columns)
-            and "unidad" in str(df.columns[i + 1]).lower()
-        )
+        nombre_norm = norm_col(nombre)
 
         unidad = ""
 
-        if tiene_unidad:
-            col_unidad = df.columns[i + 1]
-            unidad = str(df[col_unidad].iloc[0]).strip().lower()
+        # detectar unidad SOLO si realmente existe
+        if i + 1 < len(df.columns):
+            col_sig = str(df.columns[i + 1]).lower()
+
+            if "unidad" in col_sig:
+                unidad = str(df.iloc[0, i + 1]).strip().lower()
+                i += 1  # saltar unidad correctamente
 
         # =========================
-        # CASOS ESPECIALES FIJOS
+        # NORMALIZACIÓN ESPECIAL
         # =========================
         if "ultima latitud conocida" in nombre_norm:
-            nombre_final = "Última latitud conocida"
+            final = "Última latitud conocida"
 
         elif "ultima longitud conocida" in nombre_norm:
-            nombre_final = "Última longitud conocida"
-
-        # =========================
-        # UTILIZACIÓN C&F (ROBUSTO)
-        # =========================
-        elif (
-            "utilizacion" in nombre_norm
-            and "c" in nombre_norm
-            and "f" in nombre_norm
-            and "alta" in nombre_norm
-            and unidad == "%"
-        ):
-            nombre_final = "Utilización (C&F) Alto (%)"
+            final = "Última longitud conocida"
 
         elif (
             "utilizacion" in nombre_norm
             and "c" in nombre_norm
             and "f" in nombre_norm
-            and "media" in nombre_norm
-            and unidad == "%"
         ):
-            nombre_final = "Utilización (C&F) Mediano (%)"
 
-        elif (
-            "utilizacion" in nombre_norm
-            and "c" in nombre_norm
-            and "f" in nombre_norm
-            and "baja" in nombre_norm
-            and unidad == "%"
-        ):
-            nombre_final = "Utilización (C&F) Bajo (%)"
+            if "alta" in nombre_norm and unidad == "%":
+                final = "Utilización (C&F) Alto (%)"
 
-        elif (
-            "utilizacion" in nombre_norm
-            and "c" in nombre_norm
-            and "f" in nombre_norm
-            and "contacto" in nombre_norm
-            and unidad == "%"
-        ):
-            nombre_final = "Utilización (C&F) Llave conectada (%)"
+            elif "media" in nombre_norm and unidad == "%":
+                final = "Utilización (C&F) Mediano (%)"
 
-        # =========================
-        # RESTO
-        # =========================
-        else:
-            if unidad and unidad != "nan":
-                nombre_final = f"{nombre_limpio} ({unidad})"
+            elif "baja" in nombre_norm and unidad == "%":
+                final = "Utilización (C&F) Bajo (%)"
+
+            elif "contacto" in nombre_norm and unidad == "%":
+                final = "Utilización (C&F) Llave conectada (%)"
+
             else:
-                nombre_final = nombre_limpio
+                final = nombre
 
-        columnas_finales.append(col_actual)
-        nombres_finales.append(nombre_final)
+        else:
+            final = nombre
 
-        i += 2 if tiene_unidad else 1
+        columnas[final] = df.iloc[:, i]
 
-    # =========================
-    # DF FINAL
-    # =========================
-    df_final = df[columnas_finales].copy()
-    df_final.columns = [limpiar_nombre(c) for c in nombres_finales]
+        i += 1
+
+    df_final = pd.DataFrame(columnas)
 
     # =========================
-    # KEYS
+    # PASO 2: ORDEN EXACTO SEGÚN MODELO
     # =========================
-    old_keys = [(extraer_base_y_unidad(c)[0], c) for c in df_old.columns]
-    new_keys = [(extraer_base_y_unidad(c)[0], c) for c in df_final.columns]
+    resultado = pd.DataFrame()
 
-    # =========================
-    # MATCH 1:1 SIN DUPLICADOS
-    # =========================
-    used_new = [False] * len(new_keys)
-    cols_ordenadas = []
-
-    for obase, _ in old_keys:
-
-        for i, (nbase, ncol) in enumerate(new_keys):
-
-            if used_new[i]:
-                continue
-
-            if obase == nbase:
-                cols_ordenadas.append(ncol)
-                used_new[i] = True
-                break
+    for col in df_old.columns:
+        if col in df_final.columns:
+            resultado[col] = df_final[col]
 
     # =========================
-    # RESULTADO FINAL
+    # PASO 3: FECHAS
     # =========================
-    df_final_ordenado = df_final[cols_ordenadas].copy()
+    for c in resultado.columns:
+        if norm_col(c) in ["fecha de inicio", "fecha de terminacion"]:
+            resultado[c] = formatear_fecha(resultado[c])
 
-    # =========================
-    # FECHAS
-    # =========================
-    columnas_fecha = [
-        c for c in df_final_ordenado.columns
-        if norm_col(c) in ["fecha de inicio", "fecha de terminacion"]
-    ]
+    return resultado
 
-    for col in columnas_fecha:
-        df_final_ordenado[col] = formatear_fecha(df_final_ordenado[col])
-
-    return df_final_ordenado
