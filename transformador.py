@@ -173,13 +173,11 @@ def formatear_fecha(serie):
 # =========================
 def norm_col(c):
     c = str(c)
-
     c = unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("utf-8")
     c = c.lower()
     c = c.replace("\xa0", " ")
     c = re.sub(r"\s+", " ", c)
-    c = re.sub(r"[^\w\s%()]", "", c)
-
+    c = re.sub(r"[^\w\s%()&]", "", c)  # mantiene & por C&F
     return c.strip()
 
 
@@ -195,7 +193,7 @@ def extraer_base_y_unidad(col):
 
 
 # =========================
-# PROCESO PRINCIPAL (STRICT MODE REAL)
+# PROCESO PRINCIPAL
 # =========================
 def procesar_jdlink(df, df_old):
 
@@ -208,14 +206,14 @@ def procesar_jdlink(df, df_old):
         "utilizacion trabajo": "utilizacion en funcionamiento",
     }
 
+    # =========================
+    # RENOMBRAR NUEVO DF
+    # =========================
     columnas_finales = []
     nombres_finales = []
 
     i = 0
 
-    # =========================
-    # RENOMBRADO DF NUEVO
-    # =========================
     while i < len(df.columns):
 
         col_actual = str(df.columns[i])
@@ -237,7 +235,7 @@ def procesar_jdlink(df, df_old):
             unidad = str(df[col_unidad].iloc[0]).strip().lower()
 
         # =========================
-        # CASOS ESPECIALES
+        # CASOS ESPECIALES FIJOS
         # =========================
         if "ultima latitud conocida" in nombre_norm:
             nombre_final = "Última latitud conocida"
@@ -245,18 +243,48 @@ def procesar_jdlink(df, df_old):
         elif "ultima longitud conocida" in nombre_norm:
             nombre_final = "Última longitud conocida"
 
-        elif "utilizacion (c&f) alta" in nombre_norm and unidad == "%":
+        # =========================
+        # UTILIZACIÓN C&F (ROBUSTO)
+        # =========================
+        elif (
+            "utilizacion" in nombre_norm
+            and "c" in nombre_norm
+            and "f" in nombre_norm
+            and "alta" in nombre_norm
+            and unidad == "%"
+        ):
             nombre_final = "Utilización (C&F) Alto (%)"
 
-        elif "utilizacion (c&f) media" in nombre_norm and unidad == "%":
+        elif (
+            "utilizacion" in nombre_norm
+            and "c" in nombre_norm
+            and "f" in nombre_norm
+            and "media" in nombre_norm
+            and unidad == "%"
+        ):
             nombre_final = "Utilización (C&F) Mediano (%)"
 
-        elif "utilizacion (c&f) baja" in nombre_norm and unidad == "%":
+        elif (
+            "utilizacion" in nombre_norm
+            and "c" in nombre_norm
+            and "f" in nombre_norm
+            and "baja" in nombre_norm
+            and unidad == "%"
+        ):
             nombre_final = "Utilización (C&F) Bajo (%)"
 
-        elif "utilizacion (c&f) contacto dado" in nombre_norm and unidad == "%":
+        elif (
+            "utilizacion" in nombre_norm
+            and "c" in nombre_norm
+            and "f" in nombre_norm
+            and "contacto" in nombre_norm
+            and unidad == "%"
+        ):
             nombre_final = "Utilización (C&F) Llave conectada (%)"
 
+        # =========================
+        # RESTO
+        # =========================
         else:
             if unidad and unidad != "nan":
                 nombre_final = f"{nombre_limpio} ({unidad})"
@@ -269,44 +297,37 @@ def procesar_jdlink(df, df_old):
         i += 2 if tiene_unidad else 1
 
     # =========================
-    # DATAFRAME FINAL
+    # DF FINAL
     # =========================
     df_final = df[columnas_finales].copy()
     df_final.columns = [limpiar_nombre(c) for c in nombres_finales]
 
     # =========================
-    # KEYS (MODELO + NUEVO)
+    # KEYS
     # =========================
-    old_keys = [
-        (extraer_base_y_unidad(c)[0], c)
-        for c in df_old.columns
-    ]
-
-    new_keys = [
-        (extraer_base_y_unidad(c)[0], c)
-        for c in df_final.columns
-    ]
+    old_keys = [(extraer_base_y_unidad(c)[0], c) for c in df_old.columns]
+    new_keys = [(extraer_base_y_unidad(c)[0], c) for c in df_final.columns]
 
     # =========================
-    # ORDEN ESTRICTO CON DUPLICADOS
+    # MATCH 1:1 SIN DUPLICADOS
     # =========================
-    used_indices = set()
+    used_new = [False] * len(new_keys)
     cols_ordenadas = []
 
     for obase, _ in old_keys:
 
         for i, (nbase, ncol) in enumerate(new_keys):
 
-            if i in used_indices:
+            if used_new[i]:
                 continue
 
             if obase == nbase:
                 cols_ordenadas.append(ncol)
-                used_indices.add(i)
+                used_new[i] = True
                 break
 
     # =========================
-    # RESULTADO FINAL (SIN EXTRAS)
+    # RESULTADO FINAL
     # =========================
     df_final_ordenado = df_final[cols_ordenadas].copy()
 
@@ -322,4 +343,3 @@ def procesar_jdlink(df, df_old):
         df_final_ordenado[col] = formatear_fecha(df_final_ordenado[col])
 
     return df_final_ordenado
-
