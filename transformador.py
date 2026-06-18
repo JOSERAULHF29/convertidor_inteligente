@@ -148,7 +148,6 @@ def procesar_jdlink(df, df_old):
     '''
 
 
-
 import pandas as pd
 import re
 import unicodedata
@@ -196,16 +195,15 @@ def extraer_base_y_unidad(col):
 
 
 # =========================
-# PROCESO PRINCIPAL (STRICT MODE)
+# PROCESO PRINCIPAL (STRICT MODE REAL)
 # =========================
 def procesar_jdlink(df, df_old):
 
     # =========================
-    # MODELO = FUENTE DE VERDAD
+    # MODELO (FUENTE DE VERDAD)
     # =========================
     df_old.columns = [limpiar_nombre(c) for c in df_old.columns]
 
-    # mapping opcional de nombres
     mapeo = {
         "utilizacion trabajo": "utilizacion en funcionamiento",
     }
@@ -271,13 +269,13 @@ def procesar_jdlink(df, df_old):
         i += 2 if tiene_unidad else 1
 
     # =========================
-    # DF FINAL
+    # DATAFRAME FINAL
     # =========================
     df_final = df[columnas_finales].copy()
     df_final.columns = [limpiar_nombre(c) for c in nombres_finales]
 
     # =========================
-    # KEYS NORMALIZADAS
+    # KEYS (MODELO + NUEVO)
     # =========================
     old_keys = [
         (extraer_base_y_unidad(c)[0], c)
@@ -289,16 +287,23 @@ def procesar_jdlink(df, df_old):
         for c in df_final.columns
     ]
 
-    new_map = {base: col for base, col in new_keys}
-
     # =========================
-    # ORDEN ESTRICTO (MODELO MANDA)
+    # ORDEN ESTRICTO CON DUPLICADOS
     # =========================
+    used_indices = set()
     cols_ordenadas = []
 
     for obase, _ in old_keys:
-        if obase in new_map:
-            cols_ordenadas.append(new_map[obase])
+
+        for i, (nbase, ncol) in enumerate(new_keys):
+
+            if i in used_indices:
+                continue
+
+            if obase == nbase:
+                cols_ordenadas.append(ncol)
+                used_indices.add(i)
+                break
 
     # =========================
     # RESULTADO FINAL (SIN EXTRAS)
@@ -317,6 +322,4 @@ def procesar_jdlink(df, df_old):
         df_final_ordenado[col] = formatear_fecha(df_final_ordenado[col])
 
     return df_final_ordenado
-
-
 
