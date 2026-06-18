@@ -9,7 +9,7 @@ def formatear_fecha(serie):
     serie = serie.str.replace("a. m.", "AM", regex=False)
     serie = serie.str.replace("p. m.", "PM", regex=False)
 
-    serie = pd.to_datetime(serie, errors="coerce")
+    serie = pd.to_datetime(serie, errors="coerce",dayfirst=True)
 
     return serie.dt.strftime("%d/%m/%Y %H:%M")
 
