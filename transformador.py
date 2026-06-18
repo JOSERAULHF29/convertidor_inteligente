@@ -1,3 +1,4 @@
+'''
 import pandas as pd
 import re
 
@@ -144,3 +145,178 @@ def procesar_jdlink(df, df_old):
         df_final_ordenado[col] = formatear_fecha(df_final_ordenado[col])
 
     return df_final_ordenado
+    '''
+
+
+
+import pandas as pd
+import re
+import unicodedata
+
+
+# =========================
+# FECHAS
+# =========================
+def formatear_fecha(serie):
+    serie = pd.to_datetime(serie, errors="coerce")
+
+    serie = serie.astype(str).str.lower()
+    serie = serie.str.replace("a. m.", "AM", regex=False)
+    serie = serie.str.replace("p. m.", "PM", regex=False)
+
+    serie = pd.to_datetime(serie, errors="coerce", dayfirst=True)
+
+    return serie.dt.strftime("%d/%m/%Y %H:%M")
+
+
+# =========================
+# NORMALIZACIÓN FUERTE
+# =========================
+def norm_col(c):
+    c = str(c)
+
+    c = unicodedata.normalize("NFKD", c).encode("ascii", "ignore").decode("utf-8")
+    c = c.lower()
+    c = c.replace("\xa0", " ")
+    c = re.sub(r"\s+", " ", c)
+    c = re.sub(r"[^\w\s%()]", "", c)
+
+    return c.strip()
+
+
+def limpiar_nombre(c):
+    return re.sub(r"\.\d+$", "", str(c)).strip()
+
+
+def extraer_base_y_unidad(col):
+    m = re.match(r"(.+?)\s*\((.+?)\)$", str(col))
+    if m:
+        return norm_col(m.group(1)), norm_col(m.group(2))
+    return norm_col(col), ""
+
+
+# =========================
+# PROCESO PRINCIPAL (STRICT MODE)
+# =========================
+def procesar_jdlink(df, df_old):
+
+    # =========================
+    # MODELO = FUENTE DE VERDAD
+    # =========================
+    df_old.columns = [limpiar_nombre(c) for c in df_old.columns]
+
+    # mapping opcional de nombres
+    mapeo = {
+        "utilizacion trabajo": "utilizacion en funcionamiento",
+    }
+
+    columnas_finales = []
+    nombres_finales = []
+
+    i = 0
+
+    # =========================
+    # RENOMBRADO DF NUEVO
+    # =========================
+    while i < len(df.columns):
+
+        col_actual = str(df.columns[i])
+
+        nombre_limpio = limpiar_nombre(col_actual)
+        nombre_limpio = mapeo.get(nombre_limpio.lower(), nombre_limpio)
+
+        nombre_norm = norm_col(nombre_limpio)
+
+        tiene_unidad = (
+            i + 1 < len(df.columns)
+            and "unidad" in str(df.columns[i + 1]).lower()
+        )
+
+        unidad = ""
+
+        if tiene_unidad:
+            col_unidad = df.columns[i + 1]
+            unidad = str(df[col_unidad].iloc[0]).strip().lower()
+
+        # =========================
+        # CASOS ESPECIALES
+        # =========================
+        if "ultima latitud conocida" in nombre_norm:
+            nombre_final = "Última latitud conocida"
+
+        elif "ultima longitud conocida" in nombre_norm:
+            nombre_final = "Última longitud conocida"
+
+        elif "utilizacion (c&f) alta" in nombre_norm and unidad == "%":
+            nombre_final = "Utilización (C&F) Alto (%)"
+
+        elif "utilizacion (c&f) media" in nombre_norm and unidad == "%":
+            nombre_final = "Utilización (C&F) Mediano (%)"
+
+        elif "utilizacion (c&f) baja" in nombre_norm and unidad == "%":
+            nombre_final = "Utilización (C&F) Bajo (%)"
+
+        elif "utilizacion (c&f) contacto dado" in nombre_norm and unidad == "%":
+            nombre_final = "Utilización (C&F) Llave conectada (%)"
+
+        else:
+            if unidad and unidad != "nan":
+                nombre_final = f"{nombre_limpio} ({unidad})"
+            else:
+                nombre_final = nombre_limpio
+
+        columnas_finales.append(col_actual)
+        nombres_finales.append(nombre_final)
+
+        i += 2 if tiene_unidad else 1
+
+    # =========================
+    # DF FINAL
+    # =========================
+    df_final = df[columnas_finales].copy()
+    df_final.columns = [limpiar_nombre(c) for c in nombres_finales]
+
+    # =========================
+    # KEYS NORMALIZADAS
+    # =========================
+    old_keys = [
+        (extraer_base_y_unidad(c)[0], c)
+        for c in df_old.columns
+    ]
+
+    new_keys = [
+        (extraer_base_y_unidad(c)[0], c)
+        for c in df_final.columns
+    ]
+
+    new_map = {base: col for base, col in new_keys}
+
+    # =========================
+    # ORDEN ESTRICTO (MODELO MANDA)
+    # =========================
+    cols_ordenadas = []
+
+    for obase, _ in old_keys:
+        if obase in new_map:
+            cols_ordenadas.append(new_map[obase])
+
+    # =========================
+    # RESULTADO FINAL (SIN EXTRAS)
+    # =========================
+    df_final_ordenado = df_final[cols_ordenadas].copy()
+
+    # =========================
+    # FECHAS
+    # =========================
+    columnas_fecha = [
+        c for c in df_final_ordenado.columns
+        if norm_col(c) in ["fecha de inicio", "fecha de terminacion"]
+    ]
+
+    for col in columnas_fecha:
+        df_final_ordenado[col] = formatear_fecha(df_final_ordenado[col])
+
+    return df_final_ordenado
+
+
+
