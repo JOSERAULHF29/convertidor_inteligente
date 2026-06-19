@@ -180,7 +180,8 @@ if archivo_nuevo and archivo_modelo:
                 # EXPORT
                 # =========================
                 salida = BytesIO()
-                resultado.to_excel(salida, index=False, engine="openpyxl")
+                with pd.ExcelWriter(salida, engine="openpyxl") as writer:
+                       resultado.to_excel(writer, sheet_name="Exportar", index=False)
                 salida.seek(0)
 
             st.success("✅ Archivo generado correctamente")
